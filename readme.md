@@ -1,6 +1,6 @@
 # Golang Caching Proxy Server
 
-<div style="display: flex; align-items: center; justify-content: center;">
+<div align="center" style="margin: 0;display: flex; justify-content: space-evenly; align-items: center; margin-bottom: 5px">
     <img src="image.png" alt="Caching example" style="width:50%; height:auto;">
 </div>
 
