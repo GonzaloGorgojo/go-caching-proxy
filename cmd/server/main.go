@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gonzalogorgojo/go-caching-proxy/internal/cache"
+	"github.com/gonzalogorgojo/go-caching-proxy/internal/db"
 	"github.com/gonzalogorgojo/go-caching-proxy/internal/proxy"
 )
 
@@ -38,6 +39,18 @@ func main() {
 }
 
 func startServer(port int, target string, cleanInterval int64) {
+	database := db.InitDB()
+	defer database.Close()
+
+	portCache := &cache.Port{
+		DB: database,
+	}
+
+	err := portCache.SetPort(port)
+	if err != nil {
+		log.Fatalf("Failed to set port: %v", err)
+	}
+
 	c = cache.NewCache()
 
 	if cleanInterval > 0 {
@@ -72,7 +85,19 @@ func startServer(port int, target string, cleanInterval int64) {
 }
 
 func clearCacheCommand() {
-	resp, err := http.Get("http://localhost:9000/clear-cache")
+	database := db.InitDB()
+	defer database.Close()
+
+	portCache := &cache.Port{DB: database}
+
+	port, err := portCache.GetPort()
+	if err != nil {
+		log.Fatalf("Failed to get port: %v", err)
+	}
+
+	url := fmt.Sprintf("http://localhost:%d/clear-cache", port)
+
+	resp, err := http.Get(url)
 	if err != nil {
 		log.Fatalf("Failed to clear cache: %v", err)
 	}

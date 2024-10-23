@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"sync"
@@ -72,4 +73,34 @@ func (c *Cache) ClearCache() {
 
 	fmt.Printf("\nCache status after clearing: %d entries\n", len(c.Entries))
 	fmt.Println("Cache cleared entirely")
+}
+
+type Port struct {
+	Port int
+	DB   *sql.DB
+}
+
+func (p *Port) SetPort(port int) error {
+
+	insertSQL := `INSERT or REPLACE INTO port (port) VALUES (?)`
+
+	_, err := p.DB.Exec(insertSQL, port)
+	if err != nil {
+		return err
+	}
+	log.Printf("Port entry set for port: %d", port)
+	return nil
+
+}
+
+func (p *Port) GetPort() (int, error) {
+	var port int
+	querySQL := `SELECT port FROM port ORDER BY id DESC LIMIT 1`
+
+	err := p.DB.QueryRow(querySQL).Scan(&port)
+	if err != nil {
+		return 0, err
+	}
+
+	return port, nil
 }
