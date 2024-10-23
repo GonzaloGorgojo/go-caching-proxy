@@ -104,3 +104,41 @@ func (p *Port) GetPort() (int, error) {
 
 	return port, nil
 }
+
+type DBCache struct {
+	Key       string
+	Body      []byte
+	CreatedAt time.Time
+	TTL       int64
+	DB        *sql.DB
+}
+
+func (c *DBCache) SetCache(key string, body []byte, ttl int) error {
+	insertSQL := `INSERT INTO cache (key, body, created_at, ttl) VALUES (?, ?, ?, ?)`
+
+	createdAt := time.Now()
+
+	_, err := c.DB.Exec(insertSQL, key, body, createdAt, ttl)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Cache entry set for key: %s", key)
+	return nil
+}
+
+func (c *DBCache) GetCache(key string) (*DBCache, error) {
+	querySQL := `SELECT key, body, created_at, ttl FROM cache WHERE key = ?`
+
+	var cacheEntry DBCache
+	err := c.DB.QueryRow(querySQL, key).Scan(&cacheEntry.Key, &cacheEntry.Body, &cacheEntry.CreatedAt, &cacheEntry.TTL)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			log.Printf("No cache entry found for key: %s", key)
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &cacheEntry, nil
+}

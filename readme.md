@@ -4,7 +4,7 @@
     <img src="image.png" alt="Caching example" style="width:50%; height:auto;">
 </div>
 
-This project is a CLI tool written in pure Go, without external libraries, that starts a caching proxy server. The server forwards requests to a target server and caches the responses. If the same request is made again, the cached response is returned instead of forwarding the request to the target server.
+This project is a CLI tool written Go, that starts a caching proxy server. The server forwards requests to a target server and caches the responses in a sqlite file. If the same request is made again, the cached response is returned instead of forwarding the request to the target server.
 
 The tool provides two ways to clear the cache:
 
@@ -14,6 +14,7 @@ The tool provides two ways to clear the cache:
 ## Features
 
 - **Caching Proxy**: Forwards requests to the target server and caches the responses.
+- **Persistance**: If the server stops and restart again the cache will live in a sqlite file.
 - **Cache Hit/Miss Indicators**: Responses include headers to indicate whether the response was served from the cache (`X-Cache: HIT`) or fetched from the target (`X-Cache: MISS`).
 - **Cache Cleanup Service**: Option to clean cache entries at specified intervals.
 - **Clear Cache Command**: CLI command allows clearing the cache manually without restarting the proxy server.
@@ -39,7 +40,7 @@ go run ./cmd/server --port 8080 --target http://dummyjson.com
 
 This command starts the proxy server on localhost:8080, which forwards all requests to http://dummyjson.com. When a client makes requests to http://localhost:8080, the proxy forwards them to http://dummyjson.com and caches the responses for future requests.
 
-To clear the cache without stopping the server:
+To clear the cache without stopping the server, open another terminal and run:
 
 ```bash
 go run ./cmd/server --clear-cache
@@ -52,10 +53,6 @@ go run ./cmd/server --port 8080 --target http://dummyjson.com --clean 5
 ```
 
 In this case, the server runs as usual but also cleans expired cache entries every 5 minutes.
-
-### Next:
-
-- Persistent Caching with SQLite: I plan to add SQLite support to persist cache data on disk. This will allow the cache to be retained even after restarting the proxy server, providing more robust caching in environments where frequent restarts are common.
 
 ## Note
 

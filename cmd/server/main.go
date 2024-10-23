@@ -51,6 +51,10 @@ func startServer(port int, target string, cleanInterval int64) {
 		log.Fatalf("Failed to set port: %v", err)
 	}
 
+	cacheInstance := &cache.DBCache{
+		DB: database,
+	}
+
 	c = cache.NewCache()
 
 	if cleanInterval > 0 {
@@ -60,7 +64,7 @@ func startServer(port int, target string, cleanInterval int64) {
 
 	mux := http.NewServeMux()
 
-	proxyHandler, err := proxy.ProxyHandler(target, c)
+	proxyHandler, err := proxy.ProxyHandler(target, c, cacheInstance)
 	if err != nil {
 		log.Fatalf("Error creating proxy handler: %v", err)
 	}
