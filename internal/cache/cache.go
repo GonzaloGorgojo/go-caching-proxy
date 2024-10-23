@@ -4,108 +4,10 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 )
 
-type CacheEntry struct {
-	Body      []byte
-	CreatedAt time.Time
-	TTL       time.Duration
-}
-
 type Cache struct {
-	Entries map[string]CacheEntry
-	Mutex   sync.Mutex
-}
-
-func NewCache() *Cache {
-	return &Cache{
-		Entries: make(map[string]CacheEntry),
-	}
-}
-
-func (c *Cache) ClearExpiredEntries() {
-	c.Mutex.Lock()
-	defer c.Mutex.Unlock()
-	clearedEntries := 0
-
-	for key, entry := range c.Entries {
-		if time.Since(entry.CreatedAt) >= entry.TTL {
-			delete(c.Entries, key)
-			clearedEntries++
-			log.Printf("Cleared expired cache entry: %s\n", key)
-		}
-	}
-
-	if clearedEntries == 0 {
-		log.Println("No expired entries to clear.")
-	}
-}
-
-func (c *Cache) CleanUpService(interval time.Duration) {
-	go func() {
-		for {
-			time.Sleep(interval)
-			log.Printf("Running cleanup service every %v minutes\n", interval.Minutes())
-			c.ClearExpiredEntries()
-		}
-	}()
-}
-
-func (c *Cache) ClearCache() {
-	c.Mutex.Lock()
-	defer c.Mutex.Unlock()
-
-	fmt.Printf("Cache status before clearing: %d entries\n", len(c.Entries))
-
-	if len(c.Entries) == 0 {
-		fmt.Println("Cache is already empty")
-	} else {
-		fmt.Println("Current cache contents:")
-		for key, entry := range c.Entries {
-			fmt.Printf("Key: %s, Body length: %d, Created: %s, TTL: %s\n",
-				key, len(entry.Body), entry.CreatedAt, entry.TTL)
-		}
-	}
-
-	c.Entries = make(map[string]CacheEntry)
-
-	fmt.Printf("\nCache status after clearing: %d entries\n", len(c.Entries))
-	fmt.Println("Cache cleared entirely")
-}
-
-type Port struct {
-	Port int
-	DB   *sql.DB
-}
-
-func (p *Port) SetPort(port int) error {
-
-	insertSQL := `INSERT or REPLACE INTO port (port) VALUES (?)`
-
-	_, err := p.DB.Exec(insertSQL, port)
-	if err != nil {
-		return err
-	}
-	log.Printf("Port entry set for port: %d", port)
-	return nil
-
-}
-
-func (p *Port) GetPort() (int, error) {
-	var port int
-	querySQL := `SELECT port FROM port ORDER BY id DESC LIMIT 1`
-
-	err := p.DB.QueryRow(querySQL).Scan(&port)
-	if err != nil {
-		return 0, err
-	}
-
-	return port, nil
-}
-
-type DBCache struct {
 	Key       string
 	Body      []byte
 	CreatedAt time.Time
@@ -113,10 +15,10 @@ type DBCache struct {
 	DB        *sql.DB
 }
 
-func (c *DBCache) SetCache(key string, body []byte, ttl int) error {
+func (c *Cache) SetCache(key string, body []byte, ttl int) error {
 	insertSQL := `INSERT INTO cache (key, body, created_at, ttl) VALUES (?, ?, ?, ?)`
 
-	createdAt := time.Now()
+	createdAt := time.Now().Format(time.DateTime)
 
 	_, err := c.DB.Exec(insertSQL, key, body, createdAt, ttl)
 	if err != nil {
@@ -127,10 +29,10 @@ func (c *DBCache) SetCache(key string, body []byte, ttl int) error {
 	return nil
 }
 
-func (c *DBCache) GetCache(key string) (*DBCache, error) {
+func (c *Cache) GetCache(key string) (*Cache, error) {
 	querySQL := `SELECT key, body, created_at, ttl FROM cache WHERE key = ?`
 
-	var cacheEntry DBCache
+	var cacheEntry Cache
 	err := c.DB.QueryRow(querySQL, key).Scan(&cacheEntry.Key, &cacheEntry.Body, &cacheEntry.CreatedAt, &cacheEntry.TTL)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -141,4 +43,60 @@ func (c *DBCache) GetCache(key string) (*DBCache, error) {
 	}
 
 	return &cacheEntry, nil
+}
+
+func (c *Cache) ClearCache() error {
+	var count int
+	getRowsQuery := `SELECT COUNT(key) FROM cache`
+
+	err := c.DB.QueryRow(getRowsQuery).Scan(&count)
+	if err != nil {
+		log.Printf("Error counting cache: %s", err)
+		return err
+	}
+
+	fmt.Printf("Cache status before clearing: %d entries\n", count)
+
+	deleteQuery := `DELETE from cache`
+	_, err = c.DB.Exec(deleteQuery)
+	if err != nil {
+		log.Printf("Error clearing cache: %s", err)
+		return err
+	}
+
+	fmt.Println("Cache cleared entirely")
+	return nil
+}
+
+func (c *Cache) ClearExpiredEntries() error {
+	deleteExpiredQuery := `DELETE FROM cache WHERE DATETIME(created_at, '+' || ttl || ' minutes') <= DATETIME('now');`
+
+	result, err := c.DB.Exec(deleteExpiredQuery)
+	if err != nil {
+		log.Printf("Error clearing expired cache entries: %s", err)
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("Error retrieving number of deleted rows: %s", err)
+		return err
+	}
+
+	log.Printf("Cleared %d expired cache entries.", rowsAffected)
+	return nil
+
+}
+
+func (c *Cache) CleanUpService(interval time.Duration) {
+	go func() {
+		for {
+			time.Sleep(interval)
+			log.Printf("Running cleanup service every %v minutes\n", interval.Minutes())
+			err := c.ClearExpiredEntries()
+			if err != nil {
+				log.Printf("Error during cleanup: %v", err)
+			}
+		}
+	}()
 }

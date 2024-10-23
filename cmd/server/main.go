@@ -14,10 +14,7 @@ import (
 	"github.com/gonzalogorgojo/go-caching-proxy/internal/proxy"
 )
 
-var c *cache.Cache
-
 func main() {
-
 	port := flag.Int("port", 0, "--port is the port on which the caching proxy server will run. It needs to be a int")
 	target := flag.String("target", "", "--target is the URL of the server to which the requests will be forwarded. It needs to be a valid URL")
 	cleanInterval := flag.Int64("clean", 0, "--clean is the number in minutes that the cleanup service will run interval. It needs to be a int")
@@ -42,20 +39,9 @@ func startServer(port int, target string, cleanInterval int64) {
 	database := db.InitDB()
 	defer database.Close()
 
-	portCache := &cache.Port{
+	c := &cache.Cache{
 		DB: database,
 	}
-
-	err := portCache.SetPort(port)
-	if err != nil {
-		log.Fatalf("Failed to set port: %v", err)
-	}
-
-	cacheInstance := &cache.DBCache{
-		DB: database,
-	}
-
-	c = cache.NewCache()
 
 	if cleanInterval > 0 {
 		fmt.Printf("Starting cache cleaning service that will run every %v minutes\n", cleanInterval)
@@ -64,16 +50,12 @@ func startServer(port int, target string, cleanInterval int64) {
 
 	mux := http.NewServeMux()
 
-	proxyHandler, err := proxy.ProxyHandler(target, c, cacheInstance)
+	proxyHandler, err := proxy.ProxyHandler(target, c)
 	if err != nil {
 		log.Fatalf("Error creating proxy handler: %v", err)
 	}
 
 	mux.HandleFunc("/", proxyHandler)
-	mux.HandleFunc("/clear-cache", func(w http.ResponseWriter, r *http.Request) {
-		c.ClearCache()
-		fmt.Fprintf(w, "Cache cleared")
-	})
 
 	srv := &http.Server{
 		Handler:      mux,
@@ -92,24 +74,11 @@ func clearCacheCommand() {
 	database := db.InitDB()
 	defer database.Close()
 
-	portCache := &cache.Port{DB: database}
+	c := &cache.Cache{DB: database}
 
-	port, err := portCache.GetPort()
+	err := c.ClearCache()
 	if err != nil {
-		log.Fatalf("Failed to get port: %v", err)
+		log.Fatalf("Failed clear cache: %v", err)
 	}
-
-	url := fmt.Sprintf("http://localhost:%d/clear-cache", port)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		log.Fatalf("Failed to clear cache: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK {
-		fmt.Println("Cache cleared successfully.")
-	} else {
-		fmt.Printf("Failed to clear cache, status code: %v\n", resp.StatusCode)
-	}
+	fmt.Println("Cache cleared successfully.")
 }

@@ -8,12 +8,11 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"time"
 
 	"github.com/gonzalogorgojo/go-caching-proxy/internal/cache"
 )
 
-func ProxyHandler(target string, c *cache.Cache, dbC *cache.DBCache) (http.HandlerFunc, error) {
+func ProxyHandler(target string, c *cache.Cache) (http.HandlerFunc, error) {
 	targetURL, err := url.Parse(target)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse target URL: %w", err)
@@ -24,26 +23,17 @@ func ProxyHandler(target string, c *cache.Cache, dbC *cache.DBCache) (http.Handl
 	return func(w http.ResponseWriter, r *http.Request) {
 		cacheKey := r.URL.String()
 
-		cachedValue, err := dbC.GetCache(cacheKey)
+		cachedValue, err := c.GetCache(cacheKey)
 		if err != nil {
 			log.Fatalf("Error searching for the key %v", err)
 		}
 
 		if cachedValue != nil {
-			fmt.Printf("se encontro el value %v", cachedValue)
-		}
-
-		c.Mutex.Lock()
-		defer c.Mutex.Unlock()
-
-		cachedEntry, found := c.Entries[cacheKey]
-
-		if found {
 			fmt.Println("Using Cache response")
 
 			w.Header().Add("X-Cache", "Hit")
 			w.WriteHeader(http.StatusOK)
-			w.Write(cachedEntry.Body)
+			w.Write(cachedValue.Body)
 			return
 		}
 
@@ -57,15 +47,7 @@ func ProxyHandler(target string, c *cache.Cache, dbC *cache.DBCache) (http.Handl
 			r.Body.Close()
 			r.Body = io.NopCloser(bytes.NewReader(body))
 
-			cacheEntry := cache.CacheEntry{
-				Body:      body,
-				CreatedAt: time.Now(),
-				TTL:       60 * time.Second,
-			}
-
-			c.Entries[cacheKey] = cacheEntry
-
-			dbC.SetCache(cacheKey, body, 60)
+			c.SetCache(cacheKey, body, 10)
 
 			r.Header.Add("X-Cache", "Miss")
 			return nil

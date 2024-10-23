@@ -28,7 +28,6 @@ func InitDB() *sql.DB {
 	log.Println("Database initiated correctly")
 
 	createUserTable(db)
-	createPortTable(db)
 	return db
 }
 
@@ -49,20 +48,4 @@ func createUserTable(db *sql.DB) {
 	}
 
 	log.Println("Cache table created succesfully.")
-}
-
-func createPortTable(db *sql.DB) {
-	createSQLTable := `
-    CREATE TABLE IF NOT EXISTS port (
-        "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-        "port" INTEGER NOT NULL UNIQUE
-    );`
-
-	_, err := db.Exec(createSQLTable)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Println("Port table created succesfully.")
 }
